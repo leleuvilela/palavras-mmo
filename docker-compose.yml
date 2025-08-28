@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: palavras_postgres
+    environment:
+      POSTGRES_DB: palavras_mmo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/src/migrations.sql:/docker-entrypoint-initdb.d/migrations.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: palavras_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: palavras_server
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/palavras_mmo
+      - REDIS_URL=redis://redis:6379
+      - CLIENT_URL=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server:/app/server
+      - ./shared:/app/shared
+      - /app/server/node_modules
+      - /app/shared/node_modules
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: palavras_client
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_SERVER_URL=http://localhost:3001
+    volumes:
+      - ./client:/app/client
+      - ./shared:/app/shared
+      - /app/client/node_modules
+      - /app/shared/node_modules
+    depends_on:
+      - server
+
+volumes:
+  postgres_data:
+  redis_data:
