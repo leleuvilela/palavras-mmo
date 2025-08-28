@@ -1,0 +1,27 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json ./
+COPY client/package.json ./client/
+COPY shared/package.json ./shared/
+
+# Install dependencies
+RUN npm install
+RUN npm install --workspace=client
+RUN npm install --workspace=shared
+
+# Copy source code
+COPY client ./client
+COPY shared ./shared
+
+# Build shared package
+WORKDIR /app/shared
+RUN npm run build
+
+WORKDIR /app/client
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "--host"]
